@@ -12,6 +12,7 @@ The Talos deployment is maintained in
 Web -> Envoy + OIDC -> Envbox -> inner code-server :8080
 SSH -> native Tailnet SSH ACL -> restricted relay -> inner coder
 SFTP -> native Tailnet SSH ACL -> shared home and /data
+Apps -> operator Tailnet ACL -> dynamic TCP/UDP relay -> workspace / Docker
 
 Envbox (privileged outer container)
   `- Sysbox workspace (unprivileged, user namespace)
@@ -56,6 +57,18 @@ The shell relay uses a Pod-local ephemeral key and pins the inner SSH host key.
 Tailnet still authorizes login as `coder`; it does not authorize root login.
 Native SFTP sees shared home and `/data`, but its system directories belong to
 the sidecar. The sidecar never receives the outer Docker socket.
+
+`outer-start.py` discovers public TCP/UDP listeners and Docker published ports
+every two seconds. `tailnet-start.py` merges TCP targets into native Tailscale
+Serve configuration; native containerboot watches and applies the file. UDP
+uses loopback relays in the existing outer container and Tailscale's userspace
+netstack. No sidecar privilege, TUN, host networking or additional container is
+required. Bind applications to `0.0.0.0` or `::`, or publish Docker ports normally;
+loopback-only listeners and Docker mappings remain private. TCP 22/443/8080
+are management ports; TCP 2222 is the private SSH broker and UDP 41641 is
+Tailscale transport. The deployment must keep 443 and 8080 directed to its
+OAuth gateway and deny direct TCP 2222 access. Application access requires the
+same operator identity; arbitrary application protocols do not use web OAuth.
 
 ## Build and test
 
