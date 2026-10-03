@@ -104,7 +104,10 @@ try:
                     '--unit=workspace-systemd-proof', '/usr/bin/touch', '/tmp/systemd-proof'])
     execute(outer, ['docker', 'exec', 'workspace_cvm', 'test', '-f', '/tmp/systemd-proof'])
     execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'restart', 'workspace-ssh.service'])
-    print('PASS: real systemd PID 1, fixed FQDN, service control and transient service', flush=True)
+    failed_units = execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', '--failed',
+                                   '--no-legend', '--no-pager']).strip()
+    assert not failed_units, failed_units.decode()
+    print('PASS: real systemd PID 1, fixed FQDN, service control, transient service and no failed units', flush=True)
     control = run('code-test-control', 'ghcr.io/juanfont/headscale:v0.29.4@sha256:8833f828b414c0907b7e5c71da76473216fe17cce0818a166b536ec552c0903f', command=['serve'], volumes={
         str(fixtures / 'headscale.yaml'): {'bind': '/etc/headscale/config.yaml', 'mode': 'ro'},
         str(fixtures / 'policy.hujson'): {'bind': '/etc/headscale/policy.hujson', 'mode': 'ro'}})
