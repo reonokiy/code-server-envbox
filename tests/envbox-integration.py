@@ -133,6 +133,20 @@ try:
     r = operator.exec_run(['timeout', '30', *ssh, '-tt', 'coder@' + address, 'test -t 0 && printf tty'])
     assert r.exit_code == 0 and b'tty' in r.output
     print('PASS: native Tailnet ACL -> inner coder UID 1000, Docker, shared home, exact exit status and TTY', flush=True)
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'pkg-config', '--exists',
+                    'openssl', 'libffi', 'zlib', 'sqlite3', 'libpq', 'libpng', 'libxml-2.0'])
+    print('PASS: system development libraries available for user-managed tools', flush=True)
+    nested = execute(outer, ['docker', 'exec', 'workspace_cvm', 'runuser', '-u', 'coder', '--',
+                            'sh', '-c', '''set -e
+mkdir -p /tmp/docker-proof
+printf 'int main(void) { return 0; }' | cc -static -x c -o /tmp/docker-proof/probe -
+printf 'FROM scratch\nCOPY probe /probe\nENTRYPOINT ["/probe"]\n' > /tmp/docker-proof/Dockerfile
+docker build -t workspace-proof /tmp/docker-proof >/tmp/docker-proof/build.log 2>&1
+docker run --rm workspace-proof
+docker compose version
+'''])
+    assert b'Docker Compose version' in nested
+    print('PASS: inner coder builds and runs an actual Docker container', flush=True)
     execute(operator, ['sh', '-c', 'printf transfer > /tmp/upload'])
     put(operator, '/tmp', 'sftp.batch', b'put /tmp/upload /home/coder/sftp-proof\nput /tmp/upload /data/sftp-proof\nget /home/coder/legacy-proof /tmp/retained\n')
     execute(operator, ['timeout', '30', 'sftp', '-b', '/tmp/sftp.batch', *ssh[1:], 'coder@' + address])

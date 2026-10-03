@@ -33,6 +33,18 @@ to 101000. This design does not offer a VM security boundary.
 | `Dockerfile.workspace` | code-server, inner Docker, Compose, SSH and passwordless sudo |
 | `Dockerfile.tailnet` | Native Tailscale SSH/SFTP sidecar and shell relay |
 
+Users install, activate and update mise themselves in their persistent home.
+The image does not preinstall mise or extra language toolchains and package
+manager tools. Project/user configuration selects tool versions without rebuilding
+the workspace image. User-installed tools and their configuration persist in
+home.
+
+System prerequisites include the native compiler and build utilities, plus
+development libraries for TLS/FFI, compression, SQLite/PostgreSQL, readline,
+ncurses, XML/ICU, fonts and images. Docker CLI/daemon, Buildx, Compose, SSH and
+sudo are part of the workspace runtime. Basic file and network utilities are
+also included. Only the workspace image contains these system dependencies.
+
 The mount patch adds `:managed` and `:managed-ro`: Envbox leaves provider-owned
 mount permissions unchanged. Sysbox checks remain enabled. S3 CSI must present
 UID/GID 100000, directories 0770 and files 0660. The inner coder belongs to
