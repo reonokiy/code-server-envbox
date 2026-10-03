@@ -28,6 +28,11 @@ try:
     volumes=[client.volumes.create(name=tag+'-'+str(i)) for i in range(len(paths))]
     outer=client.containers.create(envbox_image,name=tag+'-envbox',network=network.name,privileged=True,command=['sh','-c','sleep infinity'],environment={'CODER_INNER_IMAGE':'docker.io/library/ubuntu:24.04@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60','CODER_INNER_USERNAME':'root','CODER_MOUNTS':'/home/coder:/home/coder,/data:/data:managed'},volumes={v.name:{'bind':p,'mode':'rw'} for v,p in zip(volumes,paths)},ports={'10000/tcp':('127.0.0.1',15001)})
     containers.append(outer)
+    # create() does not pull automatically on a fresh CI runner.
+    try:
+        client.images.get(csi_image)
+    except docker.errors.ImageNotFound:
+        client.images.pull(csi_image)
     donor=client.containers.create(csi_image)
     containers.append(donor)
     for source,target in [('/s3driver','/'),('/usr/bin/geesefs','/usr/bin/')]:

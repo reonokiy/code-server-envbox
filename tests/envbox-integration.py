@@ -37,9 +37,9 @@ def subpath(volume, target, path, readonly=False):
     m['VolumeOptions'] = {'Subpath': path}
     return m
 
-def wait_state(c):
+def wait_state(c, socket='/tmp/tailscaled.sock'):
     for _ in range(90):
-        r = c.exec_run(['tailscale', '--socket=/tmp/tailscaled.sock', 'status', '--json'])
+        r = c.exec_run(['tailscale', '--socket=' + socket, 'status', '--json'])
         if r.exit_code == 0:
             state = json.loads(r.output)
             if state.get('BackendState') == 'Running':
@@ -54,9 +54,9 @@ try:
     for event in client.images.push('localhost:15002/workspace', tag='test', stream=True, decode=True):
         if 'error' in event:
             raise RuntimeError('Synthetic registry push failed')
-    home, relay, data = [client.volumes.create(name='code-envbox-test-' + n)
-                         for n in ['home', 'relay', 'data']]
-    volumes.extend([home, relay, data])
+    home, relay, data, runtime = [client.volumes.create(name='code-envbox-test-' + n)
+                                 for n in ['home', 'relay', 'data', 'runtime']]
+    volumes.extend([home, relay, data, runtime])
     seed = run('code-envbox-seed', 'code-server-tailnet:test',
                entrypoint='sh', command=['-c', 'printf retained > /home/coder/legacy-proof; sleep infinity'],
                volumes={home.name: {'bind': '/home/coder', 'mode': 'rw'}})
@@ -67,7 +67,8 @@ try:
                user='0:0', cap_drop=['ALL'], cap_add=['CHOWN', 'DAC_OVERRIDE', 'FOWNER'],
                security_opt=['no-new-privileges:true'],
                volumes={home.name: {'bind': '/volume', 'mode': 'rw'},
-                        relay.name: {'bind': '/run/relay', 'mode': 'rw'}})
+                        relay.name: {'bind': '/run/relay', 'mode': 'rw'},
+                        runtime.name: {'bind': '/var/run/tailscale', 'mode': 'rw'}})
     assert init.wait(timeout=60)['StatusCode'] == 0, 'Recoverable migration failed'
     mounts = [subpath(home, '/home/coder', '.envbox/home'),
               subpath(home, '/var/lib/docker', '.envbox/outer-docker'),
@@ -113,12 +114,14 @@ try:
             options.update(user='101000:101000', group_add=['100000'], network_mode='container:' + outer.id,
                            mounts=[subpath(home, '/home/coder', '.envbox/home'),
                                    docker.types.Mount('/run/relay', relay.name, type='volume', read_only=True),
+                                   docker.types.Mount('/var/run/tailscale', runtime.name, type='volume'),
                                    docker.types.Mount('/data', data.name, type='volume')])
             options['volumes'] = {str(fixtures / 'serve.json'): {'bind': '/etc/tailscale/serve.json', 'mode': 'ro'}}
             env['TS_SERVE_CONFIG'] = '/etc/tailscale/serve.json'
+            env['TS_SOCKET'] = '/var/run/tailscale/tailscaled.sock'
         c = run(name, image, entrypoint='/usr/local/bin/containerboot', environment=env, **options)
         del key
-        return c, wait_state(c)
+        return c, wait_state(c, env['TS_SOCKET'])
     server, address = node('code-test-workspace', 'operator', True)
     operator, _ = node('code-test-operator', 'operator')
     denied, _ = node('code-test-denied', 'denied')
