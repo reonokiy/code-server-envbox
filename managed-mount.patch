@@ -1,0 +1,69 @@
+diff --git a/README.md b/README.md
+index d09c4a5..5abdc3b 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,9 @@
+ # envbox
+ 
++Experimental integration probe: a `:managed` CODER_MOUNTS option skips
++Envbox's chmod/chown on that mount. The volume provider must present ownership
++appropriate for the inner user namespace. This does not disable Sysbox checks.
++
+ ## Introduction
+ 
+ `envbox` is an image that enables creating non-privileged containers capable of running system-level software (e.g. `dockerd`, `systemd`, etc) in Kubernetes.
+diff --git a/cli/docker.go b/cli/docker.go
+index 469bc69..f55bc50 100644
+--- a/cli/docker.go
++++ b/cli/docker.go
+@@ -163,7 +163,7 @@ func dockerCmd() *cobra.Command {
+ 		RunE: func(cmd *cobra.Command, args []string) (err error) {
+ 			var (
+ 				ctx, cancel                 = context.WithCancel(cmd.Context()) //nolint
+-				log                         = slog.Make(slogjson.Sink(cmd.ErrOrStderr()), slogkubeterminate.Make()).Leveled(slog.LevelDebug)
++				log                         = slog.Make(slogjson.Sink(cmd.ErrOrStderr()), slogkubeterminate.Make()).Leveled(slog.LevelInfo)
+ 				blog        buildlog.Logger = buildlog.JSONLogger{Encoder: json.NewEncoder(os.Stderr)}
+ 			)
+ 
+@@ -615,7 +615,7 @@ func runDockerCVM(ctx context.Context, log slog.Logger, client dockerutil.Client
+ 
+ 	for _, m := range mounts {
+ 		// Don't modify anything private to envbox.
+-		if isPrivateMount(m) {
++		if isPrivateMount(m) || m.ManagedOwnership {
+ 			continue
+ 		}
+ 
+@@ -867,8 +867,7 @@ func dockerdArgs(link, cidr string, isNoSpace bool) ([]string, error) {
+ 	dockerBip, prefixLen := dockerutil.BridgeIPFromCIDR(cidr)
+ 
+ 	args := []string{
+-		"--debug",
+-		"--log-level=debug",
++		"--log-level=info",
+ 		fmt.Sprintf("--mtu=%d", mtu),
+ 		"--userns-remap=coder",
+ 		"--storage-driver=overlay2",
+@@ -968,7 +967,8 @@ func parseMounts(containerMounts string) ([]xunix.Mount, error) {
+ 			Mountpoint: tokens[1],
+ 		}
+ 		if len(tokens) == 3 {
+-			m.ReadOnly = tokens[2] == "ro"
++			m.ReadOnly = tokens[2] == "ro" || tokens[2] == "managed-ro"
++			m.ManagedOwnership = tokens[2] == "managed" || tokens[2] == "managed-ro"
+ 		}
+ 		mounts = append(mounts, m)
+ 	}
+diff --git a/xunix/mount.go b/xunix/mount.go
+index 84ce288..e94bfd5 100644
+--- a/xunix/mount.go
++++ b/xunix/mount.go
+@@ -26,6 +26,8 @@ type Mount struct {
+ 	Source     string
+ 	Mountpoint string
+ 	ReadOnly   bool
++	// ManagedOwnership leaves permissions to the external volume provider.
++	ManagedOwnership bool
+ }
+ 
+ func MountFS(ctx context.Context, source, mountpoint, fstype string, options ...string) error {

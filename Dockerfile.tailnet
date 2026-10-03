@@ -1,0 +1,13 @@
+FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d624b84369ea8a8dc1bf000961e12ab9@sha256:635d1389e06a818460c8405ac4806c3e3970465bb8ac97425c09db35ad4a6bc8
+LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
+USER root
+# Match inner coder UID/GID 1000 after Envbox's namespace offset. Native
+# Tailscale SFTP can access the shared files without an elevated broker.
+RUN groupmod -g 101000 coder \
+    && usermod -u 101000 -g 101000 -s /usr/local/bin/workspace-shell coder \
+    && groupadd -g 100000 workspace-data \
+    && usermod -a -G workspace-data coder \
+    && chown -R 101000:101000 /home/coder
+COPY workspace-shell.py /usr/local/bin/workspace-shell
+RUN chmod 0755 /usr/local/bin/workspace-shell
+USER 101000:101000

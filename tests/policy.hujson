@@ -1,0 +1,8 @@
+{
+  "tagOwners": {"tag:code-server": ["operator@"]},
+  "grants": [
+    {"src": ["operator@", "denied@"], "dst": ["tag:code-server"], "ip": ["22"]},
+    {"src": ["operator@"], "dst": ["tag:code-server"], "ip": ["443"]}
+  ],
+  "ssh": [{"action": "accept", "src": ["operator@"], "dst": ["tag:code-server"], "users": ["coder"]}]
+}

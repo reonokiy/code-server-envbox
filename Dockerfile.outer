@@ -1,0 +1,19 @@
+FROM golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 AS build
+WORKDIR /src
+RUN curl -fsSL https://codeload.github.com/coder/envbox/tar.gz/b2944061961598353a6a12d9ee01af662c9ab6cf -o /tmp/source.tar.gz \
+    && echo '056bdfaab59100f0ad584ea13b7e66ad3b0e1bd84c92af5ea87fa975228623ee  /tmp/source.tar.gz' | sha256sum -c - \
+    && tar -xzf /tmp/source.tar.gz --strip-components=1 -C /src
+COPY managed-mount.patch /tmp/managed-mount.patch
+RUN git apply /tmp/managed-mount.patch
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -o /envbox ./cmd/envbox
+
+FROM ghcr.io/coder/envbox@sha256:13e4477ed65912a72e52bb7115db63d4da934cf8a55962c8fdf7c470901dceff
+LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
+RUN apt-get update && apt-get install -y --no-install-recommends python3 socat openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /envbox /envbox
+COPY outer-start.py /usr/local/bin/outer-start
+COPY migrate-home.py /usr/local/bin/migrate-home
+RUN chmod 0755 /usr/local/bin/outer-start /usr/local/bin/migrate-home
+CMD ["/usr/local/bin/outer-start"]

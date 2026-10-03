@@ -1,0 +1,40 @@
+name: Publish verified images
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Build and test before publication
+        run: |
+          bash scripts/build.sh
+          python -m pip install docker
+          python tests/envbox-integration.py
+      - name: Authenticate to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Publish revision tags
+        run: |
+          for component in outer workspace tailnet; do
+            case "$component" in
+              outer) local_image=code-server-envbox:test ;;
+              workspace) local_image=code-server-workspace:test ;;
+              tailnet) local_image=code-server-relay:test ;;
+            esac
+            image="ghcr.io/reonokiy/code-server-envbox/$component:$GITHUB_SHA"
+            docker tag "$local_image" "$image"
+            docker push "$image"
+            docker image inspect "$image" --format '{{join .RepoDigests "\n"}}'
+          done
+      - name: Remove registry session
+        if: always()
+        run: docker logout ghcr.io

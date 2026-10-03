@@ -1,0 +1,26 @@
+server_url: http://code-test-control:8080
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+noise:
+  private_key_path: /var/lib/headscale/noise.key
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+policy:
+  mode: file
+  path: /etc/headscale/policy.hujson
+derp:
+  server:
+    enabled: false
+  urls: [https://controlplane.tailscale.com/derpmap/default]
+dns:
+  magic_dns: false
+  base_domain: code-test.internal
+  override_local_dns: false
+log:
+  level: error

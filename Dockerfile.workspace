@@ -1,0 +1,13 @@
+FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d624b84369ea8a8dc1bf000961e12ab9@sha256:635d1389e06a818460c8405ac4806c3e3970465bb8ac97425c09db35ad4a6bc8
+LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      docker.io docker-buildx docker-compose openssh-server sudo \
+    && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
+    && usermod -a -G root,docker coder \
+    && printf 'coder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/workspace \
+    && chmod 0440 /etc/sudoers.d/workspace
+COPY workspace-start.py /usr/local/bin/workspace-start
+COPY sshd_config /etc/ssh/sshd_workspace_config
+RUN chmod 0755 /usr/local/bin/workspace-start
+USER 1000:1000

@@ -1,0 +1,12 @@
+Port 2222
+ListenAddress 0.0.0.0
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+AllowUsers coder
+AuthorizedKeysFile /run/relay/public/authorized_key
+UsePAM yes
+Subsystem sftp internal-sftp
+AllowTcpForwarding yes
+X11Forwarding no
+PrintMotd no
