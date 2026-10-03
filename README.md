@@ -33,6 +33,18 @@ to 101000. This design does not offer a VM security boundary.
 | `Dockerfile.workspace` | code-server, inner Docker, Compose, SSH and passwordless sudo |
 | `Dockerfile.tailnet` | Native Tailscale SSH/SFTP sidecar and shell relay |
 
+Users install, activate and update mise themselves in their persistent home.
+The image does not preinstall mise or extra language toolchains and package
+manager tools. Project/user configuration selects tool versions without rebuilding
+the workspace image. User-installed tools and their configuration persist in
+home.
+
+System prerequisites include the native compiler and build utilities, plus
+development libraries for TLS/FFI, compression, SQLite/PostgreSQL, readline,
+ncurses, XML/ICU, fonts and images. Docker CLI/daemon, Buildx, Compose, SSH and
+sudo are part of the workspace runtime. Basic file and network utilities are
+also included. Only the workspace image contains these system dependencies.
+
 The mount patch adds `:managed` and `:managed-ro`: Envbox leaves provider-owned
 mount permissions unchanged. Sysbox checks remain enabled. S3 CSI must present
 UID/GID 100000, directories 0770 and files 0660. The inner coder belongs to
@@ -51,13 +63,16 @@ namespaces, plus Python with `docker` (`uv` can install it transiently).
 
 ```sh
 bash scripts/build.sh
-uv run --with docker tests/envbox-integration.py
+uv run --with-requirements tests/requirements.txt bash scripts/test.sh
 ```
 
 Tests use a disposable Headscale instance, synthetic enrollment keys and a
 local anonymous registry; they need no real credentials. They verify native
 SSH authorization, inner Docker, exact exit codes, TTY, SFTP and a recoverable
-home migration. Temporary containers, volumes and networks are removed.
+home migration. A separate test uses the actual S3 CSI Node RPCs and GeeseFS
+with synthetic S3 storage to verify ownership, Sysbox compatibility, reads,
+writes, rename, prefix isolation and persistence after unmount. Temporary
+containers, volumes and networks are removed.
 
 `migrate-home.py` copies an existing home into `.envbox/home` and shifts the
 copy's ownership. It preserves the original home for rollback. Docker and
@@ -68,6 +83,12 @@ System package changes can be reproduced by a user-managed
 ## Publishing
 
 The GitHub Actions build workflow builds and tests images without publishing.
+The existing public ECR repository can publish these images through
+`bash scripts/publish-ecr.sh` from a clean reviewed `origin/main` checkout.
+This uses the operator's `reonokiy` AWS SSO session and the native ECR credential
+helper; registry credentials are not saved. Envbox component/revision tags are
+separate from the existing code-server image tags. No AWS resource is created.
+
 The separate manual publish workflow publishes revision-tagged GHCR images
 only from `main`, after the same checks pass. Deploy by digest, not `latest`.
 

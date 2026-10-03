@@ -64,4 +64,8 @@ os.chown(private, 101000, 101000)
 os.chown(key, 101000, 101000)
 os.chmod(key, 0o600)
 os.chmod(public / 'authorized_key', 0o644)
+runtime = Path('/var/run/tailscale')
+if runtime.is_dir():
+    os.chown(runtime, 101000, 101000)
+    os.chmod(runtime, 0o700)
 print('Workspace copy prepared; legacy home retained')

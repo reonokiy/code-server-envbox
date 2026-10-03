@@ -1,8 +1,16 @@
 FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d624b84369ea8a8dc1bf000961e12ab9@sha256:635d1389e06a818460c8405ac4806c3e3970465bb8ac97425c09db35ad4a6bc8
 LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      docker.io docker-buildx docker-compose openssh-server sudo \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      docker.io docker-cli docker-buildx docker-compose openssh-server sudo \
+      build-essential pkg-config autoconf automake libtool \
+      libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev \
+      libreadline-dev libsqlite3-dev libncurses-dev libgdbm-dev libgdbm-compat-dev \
+      uuid-dev libcurl4-openssl-dev libpq-dev libsasl2-dev \
+      libxml2-dev libxslt1-dev libexpat1-dev libicu-dev \
+      libjpeg-dev libpng-dev libfreetype-dev libfontconfig1-dev tk-dev \
+      curl ca-certificates file unzip zip rsync xz-utils bzip2 \
+      less procps lsof iproute2 iputils-ping dnsutils netcat-openbsd socat \
     && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
     && usermod -a -G root,docker coder \
     && printf 'coder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/workspace \

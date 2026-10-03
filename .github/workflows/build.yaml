@@ -17,5 +17,5 @@ jobs:
         run: bash scripts/build.sh
       - name: Integration test with disposable credentials
         run: |
-          python -m pip install docker
-          python tests/envbox-integration.py
+          python -m pip install -r tests/requirements.txt
+          bash scripts/test.sh
