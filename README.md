@@ -63,13 +63,16 @@ namespaces, plus Python with `docker` (`uv` can install it transiently).
 
 ```sh
 bash scripts/build.sh
-uv run --with docker tests/envbox-integration.py
+uv run --with-requirements tests/requirements.txt bash scripts/test.sh
 ```
 
 Tests use a disposable Headscale instance, synthetic enrollment keys and a
 local anonymous registry; they need no real credentials. They verify native
 SSH authorization, inner Docker, exact exit codes, TTY, SFTP and a recoverable
-home migration. Temporary containers, volumes and networks are removed.
+home migration. A separate test uses the actual S3 CSI Node RPCs and GeeseFS
+with synthetic S3 storage to verify ownership, Sysbox compatibility, reads,
+writes, rename, prefix isolation and persistence after unmount. Temporary
+containers, volumes and networks are removed.
 
 `migrate-home.py` copies an existing home into `.envbox/home` and shifts the
 copy's ownership. It preserves the original home for rollback. Docker and

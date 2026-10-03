@@ -16,8 +16,8 @@ jobs:
       - name: Build and test before publication
         run: |
           bash scripts/build.sh
-          python -m pip install docker
-          python tests/envbox-integration.py
+          python -m pip install -r tests/requirements.txt
+          bash scripts/test.sh
       - name: Authenticate to GHCR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
