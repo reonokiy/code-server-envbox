@@ -19,9 +19,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY workspace-start.py /usr/local/bin/workspace-start
 COPY sshd_config /etc/ssh/sshd_workspace_config
 COPY systemd/ /etc/systemd/system/
+# Sysbox supplies container mounts; host kernel mounts/sysctls are unavailable.
+# Keep the existing writable /tmp rather than requesting another tmpfs mount.
 RUN chmod 0755 /usr/local/bin/workspace-start \
     && printf 'code.nokiy.net\n' > /etc/hostname \
     && systemctl mask ssh.service ssh.socket \
+         sys-kernel-config.mount sys-kernel-debug.mount sys-kernel-tracing.mount \
+         tmp.mount systemd-sysctl.service systemd-modules-load.service \
     && systemctl enable workspace.target
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3
