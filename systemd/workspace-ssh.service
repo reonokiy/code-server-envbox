@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH relay into the workspace
+Requires=workspace-prepare.service workspace-startup.service
+After=network.target workspace-prepare.service workspace-startup.service
+
+[Service]
+ExecStart=/usr/sbin/sshd -D -e -f /etc/ssh/sshd_workspace_config
+Restart=on-failure
+RuntimeDirectory=sshd
+RuntimeDirectoryMode=0755
+
+[Install]
+WantedBy=workspace.target

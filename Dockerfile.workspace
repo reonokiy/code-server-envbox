@@ -2,6 +2,7 @@ FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d62
 LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
 USER root
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      systemd-sysv dbus libpam-systemd \
       docker.io docker-cli docker-buildx docker-compose openssh-server sudo \
       build-essential pkg-config autoconf automake libtool \
       libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev \
@@ -17,5 +18,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && chmod 0440 /etc/sudoers.d/workspace
 COPY workspace-start.py /usr/local/bin/workspace-start
 COPY sshd_config /etc/ssh/sshd_workspace_config
-RUN chmod 0755 /usr/local/bin/workspace-start
+COPY systemd/ /etc/systemd/system/
+RUN chmod 0755 /usr/local/bin/workspace-start \
+    && printf 'code.nokiy.net\n' > /etc/hostname \
+    && systemctl mask ssh.service ssh.socket \
+    && systemctl enable workspace.target
+ENV container=docker
+STOPSIGNAL SIGRTMIN+3
 USER 1000:1000
