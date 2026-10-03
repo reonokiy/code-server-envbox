@@ -15,7 +15,7 @@ SFTP -> native Tailnet SSH ACL -> shared home and /data
 
 Envbox (privileged outer container)
   `- Sysbox workspace (unprivileged, user namespace)
-       |- code-server, coder with sudo
+       |- systemd as PID 1, code-server, coder with sudo
        |- Docker daemon, Buildx, Compose
        |- /home/coder -> persistent workspace home
        `- /data       -> provider-managed S3 CSI mount
@@ -82,6 +82,11 @@ tool directories needed by native Tailnet SSH and user-installed mise.
 Docker and Sysbox state live under `.envbox/`. Unix sockets are recreated by applications.
 System package changes can be reproduced by a user-managed
 `~/.config/workspace/startup.sh`, executed as root inside the workspace.
+Systemd is PID 1 and manages `docker`, `workspace-ssh` and `code-server` services.
+Use `sudo systemctl restart <service>` and `journalctl -u <service>` normally.
+Envbox detects `/sbin/init` and starts it directly. Set
+`CODER_INNER_HOSTNAME=code.nokiy.net` to fix the workspace FQDN; no Envbox patch
+is needed for systemd or hostname configuration.
 
 ## Publishing
 

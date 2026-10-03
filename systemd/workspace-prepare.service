@@ -1,0 +1,8 @@
+[Unit]
+Description=Prepare workspace SSH host keys
+Before=workspace-startup.service workspace-ssh.service code-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/workspace-start --prepare
+RemainAfterExit=yes

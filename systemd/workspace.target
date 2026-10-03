@@ -1,0 +1,8 @@
+[Unit]
+Description=Code workspace
+Requires=workspace-prepare.service workspace-startup.service
+Wants=docker.service workspace-ssh.service code-server.service
+After=workspace-prepare.service workspace-startup.service
+
+[Install]
+WantedBy=multi-user.target

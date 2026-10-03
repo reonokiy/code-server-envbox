@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply persistent user workspace startup definition
+Requires=workspace-prepare.service
+After=workspace-prepare.service
+Before=workspace-ssh.service code-server.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/workspace-start --startup
+StandardOutput=append:/tmp/workspace-startup.log
+StandardError=append:/tmp/workspace-startup.log
+RemainAfterExit=yes

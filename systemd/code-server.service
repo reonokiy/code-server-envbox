@@ -1,0 +1,15 @@
+[Unit]
+Description=Browser code workspace
+Requires=workspace-startup.service
+After=network.target workspace-startup.service
+
+[Service]
+User=coder
+Group=coder
+WorkingDirectory=/home/coder
+Environment=HOME=/home/coder
+ExecStart=/usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry /home/coder
+Restart=on-failure
+
+[Install]
+WantedBy=workspace.target

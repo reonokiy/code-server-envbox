@@ -83,6 +83,7 @@ try:
                 command=['sh', '-c', 'sleep infinity'], mounts=mounts,
                 environment={'CODER_INNER_IMAGE': 'code-test-registry:5000/workspace:test',
                              'CODER_INNER_USERNAME': 'coder',
+                             'CODER_INNER_HOSTNAME': 'code.nokiy.net',
                              'CODER_MOUNTS': '/home/coder:/home/coder,/data:/data:managed,/run/relay/public:/run/relay/public:managed-ro',
                              'CODER_BOOTSTRAP_SCRIPT': 'exec sudo -n /usr/local/bin/workspace-start'})
     # Anonymous HTTP registry is confined to this disposable synthetic fixture.
@@ -95,6 +96,15 @@ try:
         time.sleep(1)
     else:
         raise RuntimeError('Integrated workspace did not become ready')
+    assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'cat', '/proc/1/comm']).strip() == b'systemd'
+    assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'hostname']).strip() == b'code.nokiy.net'
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'is-active', '--quiet',
+                    'docker.service', 'workspace-ssh.service', 'code-server.service'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemd-run', '--quiet', '--wait',
+                    '--unit=workspace-systemd-proof', '/usr/bin/touch', '/tmp/systemd-proof'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'test', '-f', '/tmp/systemd-proof'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'restart', 'workspace-ssh.service'])
+    print('PASS: real systemd PID 1, fixed FQDN, service control and transient service', flush=True)
     control = run('code-test-control', 'ghcr.io/juanfont/headscale:v0.29.4@sha256:8833f828b414c0907b7e5c71da76473216fe17cce0818a166b536ec552c0903f', command=['serve'], volumes={
         str(fixtures / 'headscale.yaml'): {'bind': '/etc/headscale/config.yaml', 'mode': 'ro'},
         str(fixtures / 'policy.hujson'): {'bind': '/etc/headscale/policy.hujson', 'mode': 'ro'}})
