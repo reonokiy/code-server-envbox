@@ -83,6 +83,12 @@ System package changes can be reproduced by a user-managed
 ## Publishing
 
 The GitHub Actions build workflow builds and tests images without publishing.
+The existing public ECR repository can publish these images through
+`bash scripts/publish-ecr.sh` from a clean reviewed `origin/main` checkout.
+This uses the operator's `reonokiy` AWS SSO session and the native ECR credential
+helper; registry credentials are not saved. Envbox component/revision tags are
+separate from the existing code-server image tags. No AWS resource is created.
+
 The separate manual publish workflow publishes revision-tagged GHCR images
 only from `main`, after the same checks pass. Deploy by digest, not `latest`.
 
