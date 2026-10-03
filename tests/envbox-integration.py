@@ -62,6 +62,9 @@ try:
                volumes={home.name: {'bind': '/home/coder', 'mode': 'rw'}})
     time.sleep(1)
     assert execute(seed, ['cat', '/home/coder/legacy-proof']) == b'retained'
+    execute(seed, ['sh', '-c', 'mkdir -p /home/coder/.local /home/coder/.cache; '
+             'chown -R 0:0 /home/coder/.local /home/coder/.cache; '
+             'chmod 700 /home/coder/.local /home/coder/.cache'], user='0:0')
     seed.stop()
     init = run('code-envbox-init', 'code-server-envbox:test', command=['/usr/local/bin/migrate-home'],
                user='0:0', cap_drop=['ALL'], cap_add=['CHOWN', 'DAC_OVERRIDE', 'FOWNER'],
@@ -130,6 +133,7 @@ try:
     result = execute(operator, ['timeout', '30', *ssh, 'coder@' + address,
                                'id -u; command -v docker; sudo -n docker info --format "{{.ServerVersion}}"; printf shell > /home/coder/shell-proof'])
     assert b'1000' in result.splitlines() and b'/usr/bin/docker' in result
+    execute(server, ['sh', '-c', 'test -w /home/coder/.local && test -w /home/coder/.cache'])
     assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'cat', '/home/coder/shell-proof']) == b'shell'
     r = operator.exec_run(['timeout', '30', *ssh, 'coder@' + address, 'exit 37'])
     assert r.exit_code == 37
@@ -162,10 +166,11 @@ docker compose version
         assert r.exit_code not in [0, 124], 'SSH ACL deny unexpectedly accepted'
     print('PASS: root SSH and other-user SSH denied by unchanged native ACL', flush=True)
     assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'cat', '/home/coder/legacy-proof']) == b'retained'
-    check = run('code-envbox-retained', 'code-server-tailnet:test', command=['sh', '-c', 'sleep infinity'],
+    check = run('code-envbox-retained', 'code-server-tailnet:test', user='0:0', command=['sh', '-c', 'sleep infinity'],
                 entrypoint='/usr/bin/env', volumes={home.name: {'bind': '/volume', 'mode': 'ro'}})
     assert execute(check, ['cat', '/volume/legacy-proof']) == b'retained'
     assert execute(check, ['stat', '-c', '%u:%g', '/volume/legacy-proof']).strip() == b'1000:1000'
+    assert execute(check, ['stat', '-c', '%u:%g %a', '/volume/.local']).strip() == b'0:0 700'
     print('PASS: original home remains untouched and recoverable', flush=True)
 finally:
     for c in reversed(containers):

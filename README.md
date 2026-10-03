@@ -5,7 +5,8 @@ Container images for a single code-server workspace on Talos, using
 This repository owns image sources and tests. Kubernetes, OIDC, DNS, CSI,
 Tailnet policy and storage declarations belong to the deployment repository.
 
-**Status: integration under development; production has not been switched.**
+The Talos deployment is maintained in
+[reonokiy/talos](https://github.com/reonokiy/talos/tree/main/clusters/production/apps/code-server).
 
 ```
 Web -> Envoy + OIDC -> Envbox -> inner code-server :8080
@@ -75,8 +76,10 @@ writes, rename, prefix isolation and persistence after unmount. Temporary
 containers, volumes and networks are removed.
 
 `migrate-home.py` copies an existing home into `.envbox/home` and shifts the
-copy's ownership. It preserves the original home for rollback. Docker and
-Sysbox state live under `.envbox/`. Unix sockets are recreated by applications.
+copy's ownership. It preserves the original home for rollback.
+Root-owned files in the copied user home become coder-owned, including 0700
+tool directories needed by native Tailnet SSH and user-installed mise.
+Docker and Sysbox state live under `.envbox/`. Unix sockets are recreated by applications.
 System package changes can be reproduced by a user-managed
 `~/.config/workspace/startup.sh`, executed as root inside the workspace.
 

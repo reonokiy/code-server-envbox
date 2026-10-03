@@ -47,6 +47,19 @@ if not marker.exists():
     os.chown(staging, 101000, 101000)
     staging.rename(layout / 'home')
     marker.write_text('v1\n')
+# Legacy probes or sudo commands can leave root-owned 0700 tool directories.
+# They belong to the user in the copied home; never modify the rollback root.
+user_marker = layout / 'home.user-owned.v1'
+if not user_marker.exists():
+    home = layout / 'home'
+    for directory, dirs, files in os.walk(home, followlinks=False):
+        for path in [Path(directory), *(Path(directory) / name for name in dirs + files)]:
+            s = path.lstat()
+            uid = 101000 if s.st_uid == 100000 else s.st_uid
+            gid = 101000 if s.st_gid == 100000 else s.st_gid
+            if (uid, gid) != (s.st_uid, s.st_gid):
+                os.chown(path, uid, gid, follow_symlinks=False)
+    user_marker.write_text('v1\n')
 for name in ['outer-docker', 'inner', 'sysbox']:
     (layout / name).mkdir(mode=0o700, exist_ok=True)
 
