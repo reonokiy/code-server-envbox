@@ -9,5 +9,6 @@ RUN groupmod -g 101000 coder \
     && usermod -a -G workspace-data coder \
     && chown -R 101000:101000 /home/coder
 COPY workspace-shell.py /usr/local/bin/workspace-shell
-RUN chmod 0755 /usr/local/bin/workspace-shell
+COPY tailnet-start.py /usr/local/bin/tailnet-start
+RUN chmod 0755 /usr/local/bin/workspace-shell /usr/local/bin/tailnet-start
 USER 101000:101000

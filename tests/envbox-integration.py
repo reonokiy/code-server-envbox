@@ -114,7 +114,7 @@ try:
     time.sleep(3)
     users = {name: json.loads(execute(control, ['/ko-app/headscale', 'users', 'create', name, '-o', 'json']))['id']
              for name in ['operator', 'denied']}
-    def node(name, user, server=False):
+    def node(name, user, server=False, kernel=False):
         args = ['/ko-app/headscale', 'preauthkeys', 'create', '--user', str(users[user]), '--expiration', '5m', '-o', 'json']
         if server:
             args += ['--tags', 'tag:code-server']
@@ -123,6 +123,7 @@ try:
                'TS_STATE_DIR': '/home/coder/.local/state/tailscale' if server else '/tmp/tailscale-state',
                'TS_SOCKET': '/tmp/tailscaled.sock', 'TS_ACCEPT_DNS': 'false', 'TS_AUTH_ONCE': 'true',
                'TS_EXTRA_ARGS': '--login-server=http://code-test-control:8080' + (' --ssh' if server else '')}
+        env['TS_SOCKS5_SERVER'] = '127.0.0.1:1055'
         options = {'user': '1000:1000', 'cap_drop': ['ALL'], 'security_opt': ['no-new-privileges:true']}
         image = 'code-server-tailnet:test'
         if server:
@@ -135,12 +136,49 @@ try:
             options['volumes'] = {str(fixtures / 'serve.json'): {'bind': '/etc/tailscale/serve.json', 'mode': 'ro'}}
             env['TS_SERVE_CONFIG'] = '/etc/tailscale/serve.json'
             env['TS_SOCKET'] = '/var/run/tailscale/tailscaled.sock'
-        c = run(name, image, entrypoint='/usr/local/bin/containerboot', environment=env, **options)
+        entrypoint = '/usr/local/bin/tailnet-start' if server else '/usr/local/bin/containerboot'
+        if kernel:
+            env['TS_USERSPACE'] = 'false'
+            options = {'user': '0:0', 'privileged': True,
+                       'command': ['-c', 'mkdir -p /dev/net; test -e /dev/net/tun || mknod /dev/net/tun c 10 200; exec /usr/local/bin/containerboot']}
+            entrypoint = 'sh'
+        c = run(name, image, entrypoint=entrypoint, environment=env, **options)
         del key
         return c, wait_state(c, env['TS_SOCKET'])
     server, address = node('code-test-workspace', 'operator', True)
     operator, _ = node('code-test-operator', 'operator')
     denied, _ = node('code-test-denied', 'denied')
+    kernel, _ = node('code-test-kernel', 'operator', kernel=True)
+    # Start services after enrollment: no manual Serve/ACL changes per port.
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemd-run', '--quiet',
+                    '--unit=workspace-http-proof', '/usr/bin/python3', '-m', 'http.server',
+                    '3000', '--bind', '0.0.0.0', '--directory', '/tmp'])
+    udp_program = ('import socket; s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); '
+                   's.bind(("0.0.0.0",53000));\nwhile True:\n d,a=s.recvfrom(4096); s.sendto(d,a)')
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemd-run', '--quiet',
+                    '--unit=workspace-udp-proof', '/usr/bin/python3', '-c', udp_program])
+    for _ in range(30):
+        r = operator.exec_run(['curl', '--max-time', '3', '-fsS', '--socks5-hostname',
+                               '127.0.0.1:1055', f'http://{address}:3000/systemd-proof'])
+        if r.exit_code == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError('Dynamic workspace TCP forwarding failed')
+    udp_probe = ('import socket;\nfor n in range(2):\n '
+                 's=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(5); '
+                 f's.sendto(b"udp-proof",("{address}",53000)); '
+                 'assert s.recv(4096)==b"udp-proof"; s.close()')
+    execute(kernel, ['python3', '-c', udp_probe])
+    r = denied.exec_run(['curl', '--max-time', '3', '-fsS', '--socks5-hostname',
+                         '127.0.0.1:1055', f'http://{address}:3000/systemd-proof'])
+    assert r.exit_code != 0, 'Other identity unexpectedly reached application port'
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'stop',
+                    'workspace-http-proof', 'workspace-udp-proof'])
+    time.sleep(5)
+    config = json.loads(execute(server, ['cat', '/var/run/tailscale/serve-workspace.json']))
+    assert '3000' not in config['TCP']
+    print('PASS: automatic TCP/UDP forwarding, multiple UDP clients, identity deny and removal', flush=True)
     ssh = ['ssh', '-o', 'ProxyCommand=tailscale --socket=/tmp/tailscaled.sock nc %h %p',
            '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null']
     result = execute(operator, ['timeout', '30', *ssh, 'coder@' + address,
@@ -167,6 +205,27 @@ docker compose version
 '''])
     assert b'Docker Compose version' in nested
     print('PASS: inner coder builds and runs an actual Docker container', flush=True)
+    put(outer, '/tmp', 'port-server.c', (fixtures / 'port-server.c').read_bytes())
+    execute(outer, ['docker', 'cp', '/tmp/port-server.c', 'workspace_cvm:/tmp/docker-proof/port-server.c'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'sh', '-c',
+                    'cc -static /tmp/docker-proof/port-server.c -o /tmp/docker-proof/port-server; '
+                    'printf \'FROM scratch\\nCOPY port-server /server\\nENTRYPOINT ["/server"]\\n\' > /tmp/docker-proof/Dockerfile; '
+                    'docker build -t workspace-port-proof /tmp/docker-proof >/tmp/docker-proof/ports-build.log 2>&1; '
+                    'docker run -d --name port-proof -p 13001:3001 -p 13002:3001/udp workspace-port-proof'])
+    for _ in range(30):
+        r = operator.exec_run(['curl', '--max-time', '3', '-fsS', '--socks5-hostname',
+                               '127.0.0.1:1055', f'http://{address}:13001/'])
+        if r.exit_code == 0 and r.output == b'docker-proof':
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError('Docker published TCP port did not forward')
+    execute(kernel, ['python3', '-c', udp_probe.replace('53000', '13002')])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'docker', 'rm', '-f', 'port-proof'])
+    time.sleep(5)
+    config = json.loads(execute(server, ['cat', '/var/run/tailscale/serve-workspace.json']))
+    assert '13001' not in config['TCP']
+    print('PASS: actual Docker published TCP/UDP ports automatically added and removed', flush=True)
     execute(operator, ['sh', '-c', 'printf transfer > /tmp/upload'])
     put(operator, '/tmp', 'sftp.batch', b'put /tmp/upload /home/coder/sftp-proof\nput /tmp/upload /data/sftp-proof\nget /home/coder/legacy-proof /tmp/retained\n')
     execute(operator, ['timeout', '30', 'sftp', '-b', '/tmp/sftp.batch', *ssh[1:], 'coder@' + address])
