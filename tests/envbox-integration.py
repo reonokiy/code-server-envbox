@@ -114,10 +114,10 @@ try:
     time.sleep(3)
     users = {name: json.loads(execute(control, ['/ko-app/headscale', 'users', 'create', name, '-o', 'json']))['id']
              for name in ['operator', 'denied']}
-    def node(name, user, server=False, kernel=False):
+    def node(name, user, server=False, kernel=False, tag=None):
         args = ['/ko-app/headscale', 'preauthkeys', 'create', '--user', str(users[user]), '--expiration', '5m', '-o', 'json']
-        if server:
-            args += ['--tags', 'tag:code-server']
+        if server or tag:
+            args += ['--tags', tag or 'tag:code-server']
         key = json.loads(execute(control, args))['key']
         env = {'TS_AUTHKEY': key, 'TS_HOSTNAME': name, 'TS_KUBE_SECRET': '', 'TS_USERSPACE': 'true',
                'TS_STATE_DIR': '/home/coder/.local/state/tailscale' if server else '/tmp/tailscale-state',
@@ -149,6 +149,31 @@ try:
     operator, _ = node('code-test-operator', 'operator')
     denied, _ = node('code-test-denied', 'denied')
     kernel, _ = node('code-test-kernel', 'operator', kernel=True)
+    peer, peer_address = node('code-test-private-api', 'operator', tag='tag:api-internal')
+    execute(peer, ['python3', '-c', 'import subprocess; subprocess.Popen(["python3","-m","http.server","8090","--bind","127.0.0.1"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)'])
+    for port in ('443', '444'):
+        execute(peer, ['tailscale', '--socket=/tmp/tailscaled.sock', 'serve', '--bg',
+                       '--tcp=' + port, 'tcp://127.0.0.1:8090'])
+    for _ in range(30):
+        r = outer.exec_run(['docker', 'exec', 'workspace_cvm', 'runuser', '-u', 'coder', '--',
+                           'curl', '-fsS', '--connect-timeout', '3', '--max-time', '5',
+                           'http://' + peer_address + ':443/'])
+        if r.exit_code == 0:
+            break
+        time.sleep(1)
+    else:
+        raise RuntimeError('Transparent workspace Tailnet TCP did not connect')
+    assert b'Directory listing' in r.output
+    denied_outbound = outer.exec_run(['docker', 'exec', 'workspace_cvm', 'curl', '-fsS',
+                                     '--connect-timeout', '3', '--max-time', '5',
+                                     'http://' + peer_address + ':444/'])
+    assert denied_outbound.exit_code != 0, 'Unauthorized Tailnet port accepted'
+    direct = outer.exec_run(['docker', 'exec', 'workspace_cvm', 'curl', '-fsS',
+                             '--max-time', '5', 'http://' + registry.attrs['NetworkSettings']['Networks'][network.name]['IPAddress'] + ':5000/v2/'])
+    assert direct.exit_code == 0, 'Non-Tailnet traffic was redirected'
+    proxy = execute(outer, ['ss', '-H', '-lnt', 'sport = :12345'])
+    assert b'0.0.0.0:12345' not in proxy and b'127.0.0.1:12345' not in proxy
+    print('PASS: transparent inner Tailnet TCP, unauthorized port denied, direct traffic retained, proxy private bridge only', flush=True)
     # Start services after enrollment: no manual Serve/ACL changes per port.
     execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemd-run', '--quiet',
                     '--unit=workspace-http-proof', '/usr/bin/python3', '-m', 'http.server',
