@@ -168,8 +168,13 @@ try:
                                      '--connect-timeout', '3', '--max-time', '5',
                                      'http://' + peer_address + ':444/'])
     assert denied_outbound.exit_code != 0, 'Unauthorized Tailnet port accepted'
+    bridge = execute(outer, ['docker', 'inspect', '--format',
+                             '{{range .NetworkSettings.Networks}}{{.Gateway}}{{end}}',
+                             'workspace_cvm']).decode().strip()
+    execute(outer, ['python3', '-c', 'import subprocess; subprocess.Popen(["python3","-m","http.server","8091","--bind","' + bridge + '"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)'])
+    time.sleep(1)
     direct = outer.exec_run(['docker', 'exec', 'workspace_cvm', 'curl', '-fsS',
-                             '--max-time', '5', 'http://' + registry.attrs['NetworkSettings']['Networks'][network.name]['IPAddress'] + ':5000/v2/'])
+                             '--max-time', '5', 'http://' + bridge + ':8091/'])
     assert direct.exit_code == 0, 'Non-Tailnet traffic was redirected'
     proxy = execute(outer, ['ss', '-H', '-lnt', 'sport = :12345'])
     assert b'0.0.0.0:12345' not in proxy and b'127.0.0.1:12345' not in proxy
