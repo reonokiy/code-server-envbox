@@ -7,6 +7,7 @@ import signal
 import subprocess
 import time
 from pathlib import Path
+from tailnet_outbound import TailnetOutbound
 
 relay = Path('/run/relay')
 process = subprocess.Popen(['/envbox', 'docker'])
@@ -14,6 +15,7 @@ forward = None
 previous = None
 stopping = False
 udp_forwards = {}
+outbound = TailnetOutbound()
 
 def stop(signum, frame):
     global stopping
@@ -81,6 +83,7 @@ try:
                                'workspace_cvm'], capture_output=True, text=True)
         if info.returncode == 0 and info.stdout.strip():
             target = str(ipaddress.ip_address(info.stdout.strip()))
+            outbound.update(target)
             key = subprocess.run(['docker', 'exec', 'workspace_cvm', 'cat',
                                   '/etc/ssh/ssh_host_ed25519_key.pub'], capture_output=True, text=True)
             if key.returncode == 0 and key.stdout.startswith('ssh-ed25519 '):
@@ -102,6 +105,7 @@ try:
     if not stopping:
         raise RuntimeError('Envbox exited')
 finally:
+    outbound.close()
     for child in udp_forwards.values():
         if child.poll() is None:
             os.killpg(child.pid, signal.SIGTERM)

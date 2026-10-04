@@ -1,6 +1,7 @@
 {
-  "tagOwners": {"tag:code-server": ["operator@"]},
+  "tagOwners": {"tag:code-server": ["operator@"], "tag:api-internal": ["operator@"]},
   "grants": [
+    {"src": ["tag:code-server"], "dst": ["tag:api-internal"], "ip": ["tcp:443"]},
     {"src": ["operator@", "denied@"], "dst": ["tag:code-server"], "ip": ["22"]},
     {"src": ["operator@"], "dst": ["tag:code-server"], "ip": ["tcp:1-2221", "tcp:2223-65535", "udp:*"]}
   ],

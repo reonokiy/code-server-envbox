@@ -123,3 +123,11 @@ The Envbox-derived patch is AGPL-3.0, matching upstream; the license is included
 Upstream source is pinned to `b2944061961598353a6a12d9ee01af662c9ab6cf` and
 verified with SHA-256 during the build. The runtime also includes separately
 licensed Sysbox, Docker, Tailscale, OpenSSH and code-server components.
+
+Workspace TCP connections to `100.64.0.0/10` use the same tagged Tailscale node
+without per-application proxy settings. The outer runtime redirects only those
+connections through a bridge-bound redsocks listener and the sidecar's
+`127.0.0.1:1055` SOCKS proxy. Ordinary Internet traffic keeps its original route.
+Headscale grants still decide which peers and ports are reachable. This path
+supports TCP; UDP and ICMP are not tunneled. No Tailscale state, socket or
+enrollment credential is mounted into the workspace.

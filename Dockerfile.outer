@@ -10,10 +10,11 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
 
 FROM ghcr.io/coder/envbox@sha256:13e4477ed65912a72e52bb7115db63d4da934cf8a55962c8fdf7c470901dceff
 LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
-RUN apt-get update && apt-get install -y --no-install-recommends python3 socat openssh-client \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 socat openssh-client redsocks iptables \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /envbox /envbox
 COPY outer-start.py /usr/local/bin/outer-start
+COPY tailnet-outbound.py /usr/local/bin/tailnet_outbound.py
 COPY migrate-home.py /usr/local/bin/migrate-home
 RUN chmod 0755 /usr/local/bin/outer-start /usr/local/bin/migrate-home
 CMD ["/usr/local/bin/outer-start"]
