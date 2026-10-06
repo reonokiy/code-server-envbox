@@ -1,7 +1,7 @@
 [Unit]
 Description=Apply persistent user workspace startup definition
-Requires=workspace-prepare.service
-After=workspace-prepare.service
+Requires=workspace-prepare.service workspace-user-session.service
+After=workspace-prepare.service workspace-user-session.service
 Before=workspace-ssh.service code-server.service
 
 [Service]

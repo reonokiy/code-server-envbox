@@ -2,7 +2,7 @@ FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d62
 LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
 USER root
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      systemd-sysv dbus libpam-systemd \
+      systemd-sysv dbus dbus-user-session libpam-systemd \
       docker.io docker-cli docker-buildx docker-compose openssh-server sudo \
       build-essential pkg-config autoconf automake libtool \
       libssl-dev libffi-dev zlib1g-dev libbz2-dev liblzma-dev libzstd-dev \
@@ -17,6 +17,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && printf 'coder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/workspace \
     && chmod 0440 /etc/sudoers.d/workspace
 COPY workspace-start.py /usr/local/bin/workspace-start
+COPY user-session.sh /etc/profile.d/workspace-user-session.sh
 COPY sshd_config /etc/ssh/sshd_workspace_config
 COPY systemd/ /etc/systemd/system/
 # Sysbox supplies container mounts; host kernel mounts/sysctls are unavailable.
@@ -26,6 +27,8 @@ RUN chmod 0755 /usr/local/bin/workspace-start \
     && systemctl mask ssh.service ssh.socket \
          sys-kernel-config.mount sys-kernel-debug.mount sys-kernel-tracing.mount \
          tmp.mount systemd-sysctl.service systemd-modules-load.service \
+    && mkdir -p /var/lib/systemd/linger \
+    && touch /var/lib/systemd/linger/coder \
     && systemctl enable workspace.target
 ENV container=docker
 STOPSIGNAL SIGRTMIN+3

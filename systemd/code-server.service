@@ -8,6 +8,8 @@ User=coder
 Group=coder
 WorkingDirectory=/home/coder
 Environment=HOME=/home/coder
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 ExecStart=/usr/bin/code-server --bind-addr 0.0.0.0:8080 --auth none --disable-telemetry /home/coder
 Restart=on-failure
 
