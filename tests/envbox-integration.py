@@ -108,6 +108,20 @@ try:
                                    '--no-legend', '--no-pager']).strip()
     assert not failed_units, failed_units.decode()
     print('PASS: real systemd PID 1, fixed FQDN, service control, transient service and no failed units', flush=True)
+    assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'loginctl', 'show-user',
+                           'coder', '-p', 'Linger', '--value']).strip() == b'yes'
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'is-active', '--quiet',
+                    'user@1000.service', 'workspace-user-session.service'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'runuser', '-l', 'coder', '-c',
+                    'test -S "$XDG_RUNTIME_DIR/bus" && systemctl --user is-active --quiet dbus.socket dbus.service && '
+                    'systemd-run --user --quiet --wait --unit=user-session-proof /usr/bin/touch /home/coder/user-service-proof'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'test', '-f', '/home/coder/user-service-proof'])
+    web_env = execute(outer, ['docker', 'exec', 'workspace_cvm', 'systemctl', 'show',
+                              'code-server.service', '-p', 'Environment', '--value'])
+    assert b'XDG_RUNTIME_DIR=/run/user/1000' in web_env
+    assert b'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus' in web_env
+    print('PASS: lingering user manager, packaged D-Bus, login shell service and Web terminal environment', flush=True)
+
     control = run('code-test-control', 'ghcr.io/juanfont/headscale:v0.29.4@sha256:8833f828b414c0907b7e5c71da76473216fe17cce0818a166b536ec552c0903f', command=['serve'], volumes={
         str(fixtures / 'headscale.yaml'): {'bind': '/etc/headscale/config.yaml', 'mode': 'ro'},
         str(fixtures / 'policy.hujson'): {'bind': '/etc/headscale/policy.hujson', 'mode': 'ro'}})
@@ -214,6 +228,11 @@ try:
     result = execute(operator, ['timeout', '30', *ssh, 'coder@' + address,
                                'id -u; command -v docker; sudo -n docker info --format "{{.ServerVersion}}"; printf shell > /home/coder/shell-proof'])
     assert b'1000' in result.splitlines() and b'/usr/bin/docker' in result
+    execute(operator, ['timeout', '30', *ssh, 'coder@' + address,
+                       'test -S "$XDG_RUNTIME_DIR/bus" && systemctl --user is-active --quiet dbus.socket dbus.service && '
+                       'systemd-run --user --quiet --wait --unit=ssh-user-proof /usr/bin/touch /home/coder/ssh-user-proof'])
+    execute(outer, ['docker', 'exec', 'workspace_cvm', 'test', '-f', '/home/coder/ssh-user-proof'])
+
     execute(server, ['sh', '-c', 'test -w /home/coder/.local && test -w /home/coder/.cache'])
     assert execute(outer, ['docker', 'exec', 'workspace_cvm', 'cat', '/home/coder/shell-proof']) == b'shell'
     r = operator.exec_run(['timeout', '30', *ssh, 'coder@' + address, 'exit 37'])

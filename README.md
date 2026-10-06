@@ -97,6 +97,17 @@ System package changes can be reproduced by a user-managed
 `~/.config/workspace/startup.sh`, executed as root inside the workspace.
 Systemd is PID 1 and manages `docker`, `workspace-ssh` and `code-server` services.
 Use `sudo systemctl restart <service>` and `journalctl -u <service>` normally.
+
+The image includes `dbus-user-session` and enables lingering for `coder`.
+`workspace-user-session.service` starts the UID 1000 user manager and its D-Bus
+before user startup hooks, code-server and SSH. Web terminals inherit the session
+environment from code-server; SSH commands receive it through server-side SetEnv;
+login shells also receive it via `/etc/profile.d/workspace-user-session.sh`.
+User services in `~/.config/systemd/user` can be enabled with
+`systemctl --user enable --now <service>` and survive logout. Enabled units start
+again after container recreation; running processes themselves do not survive.
+This does not install LobeHub, embed credentials, or require modifying persistent
+home startup files. User-level configuration remains user-owned.
 Envbox detects `/sbin/init` and starts it directly. Set
 `CODER_INNER_HOSTNAME=code.nokiy.net` to fix the workspace FQDN; no Envbox patch
 is needed for systemd or hostname configuration.
