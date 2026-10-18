@@ -1,4 +1,4 @@
-FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.140.0-ts1.102.4-7a5a8c73d624b84369ea8a8dc1bf000961e12ab9@sha256:635d1389e06a818460c8405ac4806c3e3970465bb8ac97425c09db35ad4a6bc8
+FROM ecr-public.aws.com/a1y5s4n2/talos/code-server:4.141.0-ts1.104.1-c546dca0de5f8fe57e5b3fffc3eb085507fd197e@sha256:de54f36e7afaea486785e812b9e5699d190675a46fde550d386b8ba26b4e65de
 LABEL org.opencontainers.image.source="https://github.com/reonokiy/code-server-envbox"
 USER root
 # Match inner coder UID/GID 1000 after Envbox's namespace offset. Native
